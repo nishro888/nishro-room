@@ -1,0 +1,53 @@
+const { contextBridge, ipcRenderer } = require("electron");
+
+contextBridge.exposeInMainWorld("hub", {
+  getState: () => ipcRenderer.invoke("get-state"),
+  onState: (cb) => ipcRenderer.on("state", (_e, s) => cb(s)),
+  onBadgeUpdate: (cb) => ipcRenderer.on("badge-update", (_e, counts) => cb(counts)),
+
+  switchPrimary: (section) => ipcRenderer.send("switch-primary", section),
+  switchService: (id) => ipcRenderer.send("switch-service", id),
+  toggleService: (id, enabled) => ipcRenderer.invoke("toggle-service", { id, enabled }),
+  setServiceUrl: (id, url) => ipcRenderer.invoke("set-service-url", { id, url }),
+  showServiceMenu: (id) => ipcRenderer.send("service-context-menu", { id }),
+  suspendService: (id, suspend) => ipcRenderer.invoke("suspend-service", { id, suspend }),
+  reorderServices: (order) => ipcRenderer.invoke("reorder-services", order),
+  togglePrimaryCollapse: () => ipcRenderer.send("toggle-primary-collapse"),
+  toggleServiceRailCollapse: () => ipcRenderer.send("toggle-service-rail-collapse"),
+  toggleLayoutLock: () => ipcRenderer.send("toggle-layout-lock"),
+  svcNav: (action) => ipcRenderer.send("svc-nav", action),
+  svcCopyUrl: () => ipcRenderer.invoke("svc-copy-url"),
+  onNavState: (cb) => ipcRenderer.on("svc-nav-state", (_e, s) => cb(s)),
+  toggleNotes: (open) => ipcRenderer.send("toggle-notes", open),
+  notesGet: () => ipcRenderer.invoke("notes-get"),
+  notesSave: (text) => ipcRenderer.invoke("notes-save", text),
+  reorderTabs: (order) => ipcRenderer.invoke("reorder-tabs", order),
+  setAppTitle: (title) => ipcRenderer.invoke("set-app-title", title),
+
+  submitPin: (pin) => ipcRenderer.invoke("submit-pin", pin),
+  hasPin: () => ipcRenderer.invoke("has-pin"),
+  setPin: (pin) => ipcRenderer.invoke("set-pin", pin),
+  removePin: () => ipcRenderer.invoke("remove-pin"),
+
+  checkCompanion: (host, port) => ipcRenderer.invoke("check-companion", { host, port }),
+  openSharedFolder: (p) => ipcRenderer.invoke("open-shared-folder", p),
+  getAutostart: () => ipcRenderer.invoke("get-autostart"),
+  setAutostart: (on) => ipcRenderer.invoke("set-autostart", on),
+
+  mirrorOpen: (ip, port) => ipcRenderer.invoke("mirror-open", { ip, port }),
+  companionQr: () => ipcRenderer.invoke("companion-qr"),
+
+  companionStart: () => ipcRenderer.invoke("companion-start"),
+  companionStop: () => ipcRenderer.invoke("companion-stop"),
+  companionInfo: () => ipcRenderer.invoke("companion-info"),
+  companionSetPin: (pin) => ipcRenderer.invoke("companion-set-pin", pin),
+  companionPickFolder: () => ipcRenderer.invoke("companion-pick-folder"),
+  onCompanionStatus: (cb) => ipcRenderer.on("companion-status", (_e, info) => cb(info)),
+
+  minimizeWindow: () => ipcRenderer.send("window-minimize"),
+  toggleMaximizeWindow: () => ipcRenderer.send("window-maximize-toggle"),
+  closeWindow: () => ipcRenderer.send("window-close"),
+  isWindowMaximized: () => ipcRenderer.invoke("window-is-maximized"),
+  onWindowMaximized: (cb) => ipcRenderer.on("window-maximized", (_e, m) => cb(m)),
+  onNetSpeed: (cb) => ipcRenderer.on("net-speed", (_e, s) => cb(s)),
+});

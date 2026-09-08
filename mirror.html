@@ -1,0 +1,104 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Phone - Nishro Room</title>
+<style>
+  * { box-sizing: border-box; }
+  :root {
+    --bg: #0b0912; --bar: #14121f; --line: #2a2740; --btn: #221e3a; --btn2: #2c2748;
+    --text: #ececf5; --muted: #8f8da8; --accent: #9277ff; --accent2: #6a8dff; --ok: #39d98a; --err: #f4556e;
+  }
+  html, body { margin: 0; height: 100%; background: #000; color: var(--text);
+    font: 13px "Segoe UI", system-ui, sans-serif; overflow: hidden; user-select: none; }
+  body { display: flex; flex-direction: column; }
+  #bar { display: flex; align-items: center; gap: 5px; padding: 6px 8px; background: var(--bar);
+    border-bottom: 1px solid var(--line); flex-shrink: 0; }
+  #bar button { background: var(--btn); color: var(--text); border: 1px solid var(--line); border-radius: 8px;
+    height: 30px; min-width: 32px; padding: 0 8px; cursor: pointer; font-size: 14px; transition: background .12s, box-shadow .12s; }
+  #bar button:hover { background: var(--btn2); }
+  #bar button:active { transform: scale(0.94); }
+  #bar button.active { box-shadow: 0 0 0 1.5px var(--accent) inset; color: var(--accent); }
+  #conn { font-size: 11px; color: var(--muted); white-space: nowrap; margin-left: 2px; }
+  #conn.ok { color: var(--ok); } #conn.err { color: var(--err); }
+
+  /* settings panel */
+  #panel { background: linear-gradient(180deg, #16132a, #100e1d); border-bottom: 1px solid var(--line);
+    padding: 12px 14px; display: grid; gap: 12px; flex-shrink: 0; }
+  #panel.hidden { display: none; }
+  .presets { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .plabel { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 700; }
+  .preset { background: var(--btn); color: var(--text); border: 1px solid var(--line); border-radius: 999px;
+    padding: 6px 14px; cursor: pointer; font-size: 12px; font-weight: 600; }
+  .preset:hover { background: var(--btn2); }
+  .preset.active { background: linear-gradient(135deg, var(--accent), var(--accent2)); border-color: transparent; color: #fff; }
+  .slider { display: grid; grid-template-columns: 92px 1fr auto; align-items: center; gap: 10px;
+    font-size: 12px; color: var(--muted); }
+  .slider b { color: var(--text); font-variant-numeric: tabular-nums; text-align: right; min-width: 46px; }
+  .slider input[type=range] { width: 100%; accent-color: var(--accent); }
+
+  #stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; background: #000; position: relative; }
+  #screen { max-width: 100%; max-height: 100%; object-fit: contain; -webkit-user-drag: none; cursor: crosshair; }
+  .overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 14px; background: rgba(8,6,16,.9); color: var(--text); text-align: center; padding: 24px; }
+  .overlay.hidden { display: none; }
+  #ov-msg { max-width: 82%; white-space: pre-line; font-size: 14px; color: #cfcde0; line-height: 1.5; }
+  #ov-actions { display: flex; gap: 10px; }
+  .overlay button { background: var(--btn); color: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 8px 16px; cursor: pointer; }
+  .overlay button:hover { background: var(--btn2); }
+  .spinner { width: 34px; height: 34px; border-radius: 50%; border: 3px solid #322d4d; border-top-color: var(--accent); animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #hint { text-align: center; font-size: 11px; color: var(--accent); padding: 4px; background: var(--bar);
+    border-top: 1px solid var(--line); flex-shrink: 0; min-height: 22px; }
+</style>
+</head>
+<body>
+  <div id="bar">
+    <button data-key="back" title="Back">◀</button>
+    <button data-key="home" title="Home">⬤</button>
+    <button data-key="recents" title="Recent apps">▢</button>
+    <button data-key="notifications" title="Notifications">🔔</button>
+    <button data-key="voldown" title="Volume down">🔉</button>
+    <button data-key="volup" title="Volume up">🔊</button>
+    <button data-key="lock" title="Lock screen">🔒</button>
+    <span style="flex:1"></span>
+    <button id="btn-private" title="Private view — dim the phone screen (PC still sees it)">🕶️</button>
+    <button id="btn-sound" title="Play phone audio on this PC">🔈</button>
+    <button id="btn-voice" title="Voice control (hands-free)">🎤</button>
+    <button id="btn-top" title="Always on top">📌</button>
+    <button id="btn-full" title="Fullscreen (F11)">⛶</button>
+    <button id="btn-settings" title="Quality &amp; speed">⚙</button>
+    <span id="conn">connecting…</span>
+  </div>
+
+  <div id="panel" class="hidden">
+    <div class="presets">
+      <span class="plabel">Preset</span>
+      <button class="preset" data-preset="smooth">Smooth</button>
+      <button class="preset" data-preset="balanced">Balanced</button>
+      <button class="preset" data-preset="sharp">Sharp</button>
+    </div>
+    <label class="slider">Resolution <input type="range" id="s-res" min="320" max="1600" step="80" /><b id="v-res">—</b></label>
+    <label class="slider">Frame rate <input type="range" id="s-fps" min="2" max="30" step="1" /><b id="v-fps">—</b></label>
+    <label class="slider">Quality <input type="range" id="s-q" min="10" max="92" step="2" /><b id="v-q">—</b></label>
+    <div class="slider" style="grid-template-columns:92px 1fr;">Microphone
+      <select id="mic-sel" style="background:var(--btn);color:var(--text);border:1px solid var(--line);border-radius:8px;height:28px;padding:0 6px;font-size:12px;"></select>
+    </div>
+    <div class="slider" style="grid-template-columns:92px 1fr auto;">Mic level
+      <div style="height:8px;background:var(--btn);border-radius:99px;overflow:hidden;"><div id="mic-bar" style="height:100%;width:0;background:linear-gradient(90deg,var(--ok),var(--accent));transition:width .1s;"></div></div>
+      <b id="mic-hint" style="min-width:64px;color:var(--muted);font-weight:600;">🎤 off</b>
+    </div>
+  </div>
+
+  <div id="stage">
+    <img id="screen" draggable="false" alt="Phone screen" />
+    <div id="overlay" class="overlay">
+      <div class="spinner" id="ov-spin"></div>
+      <div id="ov-msg">Connecting to phone…</div>
+      <div id="ov-actions"></div>
+    </div>
+  </div>
+  <div id="hint"></div>
+  <script src="mirror.js"></script>
+</body>
+</html>

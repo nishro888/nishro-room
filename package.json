@@ -1,0 +1,54 @@
+{
+  "name": "nishro-room",
+  "version": "0.6.0",
+  "private": true,
+  "description": "Nishro Room - the desktop half of the Nishro ecosystem. Social Hub (Facebook, Messenger, Instagram, WhatsApp, Telegram, LinkedIn, Gmail, Drive - each the real official site, no automation) plus an integrated, auto-managed PC Companion.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "screenshot-check": "electron . --screenshot-check",
+    "dist": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^43.3.0",
+    "electron-builder": "^25.1.8",
+    "png-to-ico": "^3.0.2"
+  },
+  "build": {
+    "appId": "com.nishro.room",
+    "productName": "Nishro Room",
+    "asar": false,
+    "directories": {
+      "output": "installer"
+    },
+    "files": [
+      "**/*",
+      "!dist/**",
+      "!installer/**",
+      "!screenshots/**",
+      "!make_icon.js",
+      "!build-assets/**",
+      "!.iconwork/**",
+      "!icon-*.png",
+      "!shot*.png",
+      "!shot*.js"
+    ],
+    "extraResources": [],
+    "win": {
+      "target": "nsis",
+      "icon": "icon.ico",
+      "executableName": "Nishro"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Nishro Room"
+    }
+  },
+  "dependencies": {
+    "qrcode": "^1.5.4"
+  }
+}
