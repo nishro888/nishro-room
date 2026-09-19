@@ -109,7 +109,7 @@ function readSettings() {
   if (typeof s.layoutLocked !== "boolean") s.layoutLocked = false;
   if (typeof s.notesOpen !== "boolean") s.notesOpen = false;
   // top-tab order (the 3 whole-app sections)
-  const SECTIONS = ["social", "pccompanion", "settings"];
+  const SECTIONS = ["social", "pcstatus", "privacy", "pccompanion", "settings"];
   if (!Array.isArray(s.tabOrder)) s.tabOrder = [...SECTIONS];
   s.tabOrder = s.tabOrder.filter((x) => SECTIONS.includes(x));
   for (const x of SECTIONS) if (!s.tabOrder.includes(x)) s.tabOrder.push(x);
@@ -625,6 +625,23 @@ ipcMain.handle("mic-monitor-start", async () => {
 });
 ipcMain.handle("mic-monitor-stop", () => { stopMonitor(); return { ok: true }; });
 
+// Privacy monitor: which apps are using / last used the camera & mic. Reads the
+// Windows ConsentStore ledger via privacy.ps1 (the same source Settings uses),
+// so it catches e.g. "Discord mic is live" even when you think it's muted.
+function runPrivacy() {
+  return new Promise((resolve) => {
+    const empty = { camera: [], microphone: [] };
+    try {
+      const p = spawn("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", path.join(__dirname, "privacy.ps1")], { windowsHide: true });
+      let out = "";
+      p.stdout.on("data", (d) => (out += d.toString()));
+      p.on("close", () => { try { const j = JSON.parse(out.trim()); resolve({ camera: j.camera || [], microphone: j.microphone || [] }); } catch { resolve(empty); } });
+      p.on("error", () => resolve(empty));
+    } catch { resolve(empty); }
+  });
+}
+ipcMain.handle("privacy-scan", () => runPrivacy());
+
 // --------------------------------------------------------------------- state
 
 let mainWindow;
@@ -1065,7 +1082,7 @@ ipcMain.handle("notes-save", (_e, text) => {
 });
 
 ipcMain.handle("reorder-tabs", (_e, newOrder) => {
-  const SECTIONS = ["social", "pccompanion", "settings"];
+  const SECTIONS = ["social", "pcstatus", "privacy", "pccompanion", "settings"];
   const valid = (newOrder || []).filter((x) => SECTIONS.includes(x));
   for (const x of SECTIONS) if (!valid.includes(x)) valid.push(x);
   const s = readSettings();
@@ -1272,6 +1289,113 @@ function startNetSpeed() {
   } catch (e) { netProc = null; }
 }
 
+// -------------------------------------------------------- PC status monitor
+// Samples CPU / RAM / disk every few seconds into a short live ring, and rolls
+// each day into a compact daily average/peak record so weeks–months of history
+// fit in a tiny file. Runs quietly the whole time Nishro Room is open.
+const statsFile = () => path.join(userDataDir(), "pcstats.json");
+let statLive = [];        // {t, cpu, mem, disk} — ~75 min at 5s
+let statDaily = [];       // {date, cpuA, cpuM, memA, memM, disk, n}
+let lastCpuTimes = null;
+let statTimer = null;
+let statPersistN = 0;
+const CORES = os.cpus().length || 1;
+
+function readCpuTimes() {
+  let idle = 0, total = 0;
+  for (const c of os.cpus()) { for (const k in c.times) total += c.times[k]; idle += c.times.idle; }
+  return { idle, total };
+}
+// Nishro Room's own footprint across all its processes (main/renderers/GPU/views).
+function nishroUsage() {
+  let mem = 0, cpu = 0, procs = 0;
+  try {
+    for (const m of app.getAppMetrics()) {
+      mem += (m.memory && m.memory.workingSetSize) || 0;   // KB
+      cpu += (m.cpu && m.cpu.percentCPUUsage) || 0;         // % of one core
+      procs++;
+    }
+  } catch {}
+  return { memMB: mem / 1024, cpu: cpu / CORES, procs };    // cpu -> % of the whole machine
+}
+function diskInfo() {
+  try {
+    const drv = (process.env.SystemDrive || "C:") + "\\";
+    const s = fs.statfsSync(drv);
+    const totalGB = (s.bsize * s.blocks) / 1e9;
+    const freeGB = (s.bsize * s.bavail) / 1e9;
+    return { pct: (1 - s.bavail / s.blocks) * 100, freeGB, totalGB };
+  } catch { return null; }
+}
+function sampleStats() {
+  const now = Date.now();
+  const t = readCpuTimes();
+  let cpu = 0;
+  if (lastCpuTimes) {
+    const dt = t.total - lastCpuTimes.total, di = t.idle - lastCpuTimes.idle;
+    if (dt > 0) cpu = Math.max(0, Math.min(100, (1 - di / dt) * 100));
+  }
+  lastCpuTimes = t;
+  const mem = (1 - os.freemem() / os.totalmem()) * 100;
+  const dk = diskInfo();
+  const disk = dk ? dk.pct : null;
+  const nu = nishroUsage();
+
+  statLive.push({ t: now, cpu: Math.round(cpu), mem: Math.round(mem), disk: disk == null ? null : Math.round(disk) });
+  if (statLive.length > 900) statLive.shift();
+
+  const date = new Date(now).toISOString().slice(0, 10);
+  let d = statDaily[statDaily.length - 1];
+  if (!d || d.date !== date) {
+    d = { date, cpuA: 0, cpuM: 0, memA: 0, memM: 0, disk: disk, nMemA: 0, nMemM: 0, nCpuA: 0, nCpuM: 0, n: 0 };
+    statDaily.push(d);
+    if (statDaily.length > 400) statDaily.shift();
+  }
+  d.n++;
+  d.cpuA += (cpu - d.cpuA) / d.n;   // running mean
+  d.memA += (mem - d.memA) / d.n;
+  d.cpuM = Math.max(d.cpuM, cpu);
+  d.memM = Math.max(d.memM, mem);
+  d.nMemA = (d.nMemA || 0) + (nu.memMB - (d.nMemA || 0)) / d.n;   // Nishro's own RAM/CPU trend
+  d.nMemM = Math.max(d.nMemM || 0, nu.memMB);
+  d.nCpuA = (d.nCpuA || 0) + (nu.cpu - (d.nCpuA || 0)) / d.n;
+  d.nCpuM = Math.max(d.nCpuM || 0, nu.cpu);
+  if (disk != null) d.disk = disk;
+
+  if (++statPersistN >= 24) { statPersistN = 0; persistStats(); }   // ~every 2 min
+}
+function persistStats() { try { fs.writeFileSync(statsFile(), JSON.stringify({ daily: statDaily }), "utf8"); } catch {} }
+function startStats() {
+  try { const j = JSON.parse(fs.readFileSync(statsFile(), "utf8")); if (Array.isArray(j.daily)) statDaily = j.daily; } catch {}
+  lastCpuTimes = readCpuTimes();
+  if (statTimer) clearInterval(statTimer);
+  statTimer = setInterval(sampleStats, 5000);
+}
+function downsample(arr, max) {
+  if (arr.length <= max) return arr;
+  const step = arr.length / max, out = [];
+  for (let i = 0; i < max; i++) out.push(arr[Math.floor(i * step)]);
+  out.push(arr[arr.length - 1]);
+  return out;
+}
+ipcMain.handle("pc-stats-now", () => {
+  const last = statLive.length ? statLive[statLive.length - 1] : { cpu: 0, mem: 0, disk: null };
+  const dk = diskInfo();
+  const nu = nishroUsage();
+  const today = statDaily[statDaily.length - 1];
+  return {
+    cpu: last.cpu, mem: last.mem, disk: last.disk,
+    memUsedGB: (os.totalmem() - os.freemem()) / 1e9, memTotalGB: os.totalmem() / 1e9,
+    diskFreeGB: dk ? dk.freeGB : null, diskTotalGB: dk ? dk.totalGB : null,
+    uptime: os.uptime(), cores: os.cpus().length,
+    nishro: {
+      cpu: nu.cpu, memMB: nu.memMB, procs: nu.procs,
+      todayAvgMB: today ? today.nMemA : null, todayPeakMB: today ? today.nMemM : null,
+    },
+  };
+});
+ipcMain.handle("pc-stats-series", () => ({ live: downsample(statLive, 240), daily: statDaily.slice(-120) }));
+
 // --------------------------------------------------------------------- main
 
 function createWindow() {
@@ -1334,6 +1458,7 @@ app.whenReady().then(async () => {
     // needed in the first seconds (the phone won't connect that fast).
     setTimeout(() => startCompanion(), 2500);
     setTimeout(() => startNetSpeed(), 3500);   // internet speed meter (off the startup burst)
+    setTimeout(() => startStats(), 4500);      // PC status sampler (off the startup burst)
   }
 
   if (process.argv.includes("--screenshot-check")) {
@@ -1351,7 +1476,10 @@ app.whenReady().then(async () => {
     const s3 = readSettings(); s3.primaryCollapsed = false; writeSettings(s3); relayout(); broadcastState();
 
     currentPrimary = "settings"; relayout(); broadcastState(); await shot("panel_settings.png");
+    currentPrimary = "pcstatus"; relayout(); broadcastState(); await new Promise((r) => setTimeout(r, 700)); await shot("panel_pcstatus.png");
     currentPrimary = "pccompanion"; relayout(); broadcastState(); await shot("panel_pccompanion.png");
+    // privacy scan spawns PowerShell - give it extra time to populate before capture
+    currentPrimary = "privacy"; relayout(); broadcastState(); await new Promise((r) => setTimeout(r, 1600)); await shot("panel_privacy.png");
 
     console.log("SCREENSHOT_CHECK_DONE");
     app.quit();
@@ -1359,6 +1487,6 @@ app.whenReady().then(async () => {
 });
 
 function cleanupTray() { try { if (tray) { tray.destroy(); tray = null; } } catch {} }
-app.on("before-quit", () => { app.isQuiting = true; stopCompanion(); stopVoice(); stopAudio(); stopMonitor(); stopNetSpeed(); cleanupTray(); });
+app.on("before-quit", () => { app.isQuiting = true; stopCompanion(); stopVoice(); stopAudio(); stopMonitor(); stopNetSpeed(); try { if (statTimer) clearInterval(statTimer); persistStats(); } catch {} cleanupTray(); });
 app.on("will-quit", cleanupTray);   // ensure the tray icon is removed (no ghost icon)
 app.on("window-all-closed", () => { if (process.platform !== "darwin") app.quit(); });

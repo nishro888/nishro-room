@@ -27,6 +27,10 @@ import socket
 import subprocess
 import sys
 import urllib.parse
+try:
+    import winreg
+except ImportError:
+    winreg = None
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -168,6 +172,95 @@ def primary_lan_ip() -> str:
         return "127.0.0.1"
     finally:
         sock.close()
+
+
+# ------------------------------------------------- camera/mic privacy monitor
+#
+# Same source Windows Settings + the taskbar mic dot use: the CapabilityAccess-
+# Manager\ConsentStore ledger. Each app key carries LastUsedTimeStart/Stop as
+# FILETIME QWORDs; Stop == 0 means "using the device right now".
+
+_CONSENT = r"SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore"
+_FT_EPOCH = 116444736000000000   # 100-ns ticks between 1601-01-01 and 1970-01-01
+
+
+def _ft_to_ms(ft: int):
+    if not ft or ft <= 0:
+        return None
+    return (int(ft) - _FT_EPOCH) // 10000
+
+
+def _iter_consent_keys(hive, base):
+    """Yield (relative_path, open_handle) for base and every descendant key."""
+    try:
+        root = winreg.OpenKey(hive, base)
+    except OSError:
+        return
+    stack = [("", root)]
+    while stack:
+        rel, handle = stack.pop()
+        yield rel, handle
+        i = 0
+        while True:
+            try:
+                name = winreg.EnumKey(handle, i)
+            except OSError:
+                break
+            i += 1
+            child_rel = rel + "\\" + name if rel else name
+            try:
+                stack.append((child_rel, winreg.OpenKey(hive, base + "\\" + child_rel)))
+            except OSError:
+                pass
+
+
+def _scan_consent_device(device: str):
+    by_id = {}
+    base = _CONSENT + "\\" + device
+    for hive in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+        for rel, handle in _iter_consent_keys(hive, base):
+            if not rel:
+                continue
+            try:
+                start = winreg.QueryValueEx(handle, "LastUsedTimeStart")[0]
+            except OSError:
+                continue
+            try:
+                stop = winreg.QueryValueEx(handle, "LastUsedTimeStop")[0]
+            except OSError:
+                stop = 0
+            parts = rel.split("\\")
+            if parts[0] == "NonPackaged" and len(parts) >= 2:
+                token = parts[1]
+                fpath = token.replace("#", "\\")
+                name = fpath.rsplit("\\", 1)[-1]
+                packaged = False
+            else:
+                token = parts[0]
+                fpath = token
+                name = re.sub(r"_[^_]+$", "", token)   # strip publisher hash
+                packaged = True
+            in_use = bool(stop == 0 and start and start > 0)
+            entry = {
+                "name": name, "path": fpath, "packaged": packaged, "inUse": in_use,
+                "lastStart": _ft_to_ms(start), "lastStop": _ft_to_ms(stop),
+            }
+            prev = by_id.get(token)
+            if prev is None or in_use or (entry["lastStart"] or 0) > (prev["lastStart"] or 0):
+                by_id[token] = entry
+    items = list(by_id.values())
+    items.sort(key=lambda e: (not e["inUse"], -(e["lastStart"] or 0)))
+    return items
+
+
+def scan_privacy():
+    if winreg is None or sys.platform != "win32":
+        return {"camera": [], "microphone": []}
+    try:
+        return {"camera": _scan_consent_device("webcam"),
+                "microphone": _scan_consent_device("microphone")}
+    except Exception as exc:   # never let a registry quirk take the endpoint down
+        return {"camera": [], "microphone": [], "error": str(exc)}
 
 
 class _MultipartReader:
@@ -327,6 +420,8 @@ class CompanionHandler(BaseHTTPRequestHandler):
             self._download(urllib.parse.parse_qs(split.query).get("path", [""])[0])
         elif path == "/api/clipboard":
             self._json(200, {"text": get_clipboard()})
+        elif path == "/api/privacy":
+            self._json(200, scan_privacy())
         else:
             self._json(404, {"error": "not found"})
 

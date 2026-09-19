@@ -77,6 +77,10 @@ function render() {
   // panels
   document.getElementById("panel-settings").style.display = state.primary === "settings" ? "block" : "none";
   document.getElementById("panel-pccompanion").style.display = state.primary === "pccompanion" ? "block" : "none";
+  document.getElementById("panel-pcstatus").style.display = state.primary === "pcstatus" ? "block" : "none";
+  if (window.PCStatus) PCStatus.setActive(state.primary === "pcstatus");
+  document.getElementById("panel-privacy").style.display = state.primary === "privacy" ? "block" : "none";
+  if (window.Privacy) Privacy.setActive(state.primary === "privacy");
 
   renderServiceRail();
   renderSettingsServices();
@@ -88,6 +92,8 @@ function render() {
 
 const TAB_DEFS = {
   social: { name: "Social", svg: `<svg viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>` },
+  pcstatus: { name: "PC Status", svg: `<svg viewBox="0 0 24 24"><path d="M3 13h3l2-6 4 12 2.5-7 1.5 3H21" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>` },
+  privacy: { name: "Camera & Mic", svg: `<svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.2-2.9 7.4-7 8.5-4.1-1.1-7-4.3-7-8.5V6z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="12" cy="11" r="2.3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>` },
   pccompanion: { name: "PC Companion", svg: `<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 20h8M12 16v4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>` },
   settings: { name: "Settings", svg: `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.6 7.6 0 0 0-1.7-1l-.4-2.6h-4l-.4 2.6a7.6 7.6 0 0 0-1.7 1l-2.4-1-2 3.4L6.6 11a7.6 7.6 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7.6 7.6 0 0 0 1.7 1l.4 2.6h4l.4-2.6a7.6 7.6 0 0 0 1.7-1l2.4 1 2-3.4z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>` },
 };
@@ -287,6 +293,183 @@ document.getElementById("rail-lock").addEventListener("click", () => window.hub.
     fwd.disabled = !s.canForward;
   });
 })();
+
+// ---------------------------------------------------------- PC Status monitor
+const PCStatus = {
+  range: "live",
+  series: { live: [], daily: [] },
+  _active: false, _nowTimer: null, _seriesTimer: null, _inited: false,
+  init() {
+    if (this._inited) return; this._inited = true;
+    const range = document.getElementById("stat-range");
+    if (range) range.addEventListener("click", (e) => {
+      const b = e.target.closest(".range-btn"); if (!b) return;
+      this.range = b.dataset.range;
+      range.querySelectorAll(".range-btn").forEach((x) => x.classList.toggle("active", x === b));
+      this.renderChart();
+    });
+    window.addEventListener("resize", () => { if (this._active) this.renderChart(); });
+  },
+  async setActive(on) {
+    if (on === this._active) return;
+    this._active = on;
+    clearInterval(this._nowTimer); clearInterval(this._seriesTimer);
+    if (!on) return;
+    this.init();
+    await this.refreshNow(); await this.refreshSeries();
+    this._nowTimer = setInterval(() => this.refreshNow(), 2000);
+    this._seriesTimer = setInterval(() => this.refreshSeries(), 20000);
+  },
+  async refreshNow() {
+    let d; try { d = await window.hub.pcStatsNow(); } catch { return; }
+    setRing("cpu", d.cpu); setRing("mem", d.mem); setRing("disk", d.disk);
+    setText("cpu-note", d.cores ? d.cores + " cores" : "");
+    setText("mem-note", d.memUsedGB != null ? `${d.memUsedGB.toFixed(1)} / ${d.memTotalGB.toFixed(0)} GB used` : "");
+    setText("disk-note", d.diskFreeGB != null ? `${Math.round(d.diskFreeGB)} GB free of ${Math.round(d.diskTotalGB)}` : "");
+    setText("stat-uptime", "PC uptime: " + fmtUptime(d.uptime));
+    const n = d.nishro || {};
+    setText("nu-cpu", n.cpu != null ? (n.cpu < 10 ? n.cpu.toFixed(1) : Math.round(n.cpu)) + "%" : "—");
+    setText("nu-mem", n.memMB != null ? fmtMB(n.memMB) : "—");
+    setText("nu-procs", n.procs ? n.procs + " processes" : "");
+    setText("nu-note", n.todayPeakMB != null ? `today — avg ${fmtMB(n.todayAvgMB)} · peak ${fmtMB(n.todayPeakMB)}` : "");
+    if (this.range === "live") this.renderChart();
+  },
+  async refreshSeries() { try { this.series = await window.hub.pcStatsSeries(); } catch {} this.renderChart(); },
+  renderChart() { drawStatChart(this.range, this.series); },
+};
+window.PCStatus = PCStatus;
+
+// ---- Camera & Mic privacy monitor ----
+const Privacy = {
+  _active: false, _timer: null,
+  async setActive(on) {
+    if (on === this._active) return;
+    this._active = on;
+    clearInterval(this._timer);
+    if (!on) return;
+    await this.refresh();
+    this._timer = setInterval(() => this.refresh(), 3000);   // near-live
+  },
+  async refresh() {
+    let d; try { d = await window.hub.privacyScan(); } catch { return; }
+    this.renderDevice("mic", d.microphone || []);
+    this.renderDevice("cam", d.camera || []);
+    setText("priv-updated", "Updated " + new Date().toLocaleTimeString());
+  },
+  renderDevice(which, entries) {
+    const list = document.getElementById(`priv-${which}-list`);
+    const stateEl = document.getElementById(`priv-${which}-state`);
+    const active = entries.filter((e) => e.inUse);
+    if (active.length) {
+      stateEl.textContent = "● In use now";
+      stateEl.className = "priv-state live";
+    } else {
+      stateEl.textContent = "Idle";
+      stateEl.className = "priv-state idle";
+    }
+    list.innerHTML = "";
+    if (!entries.length) {
+      list.innerHTML = `<li class="priv-empty">No app has used the ${which === "mic" ? "microphone" : "camera"} on this PC.</li>`;
+      return;
+    }
+    for (const e of entries) {
+      const li = document.createElement("li");
+      li.className = "priv-item" + (e.inUse ? " live" : "");
+      const dot = `<span class="priv-dot"></span>`;
+      const meta = e.inUse
+        ? `<span class="priv-badge live">Using it now</span>`
+        : `<span class="priv-when">${e.lastStart ? "last used " + relTime(e.lastStart) : "used before"}</span>`;
+      li.innerHTML =
+        `${dot}<div class="priv-app"><span class="priv-name">${escapeHtml(e.name)}</span>` +
+        `<span class="priv-path" title="${escapeHtml(e.path)}">${escapeHtml(e.path)}</span></div>${meta}`;
+      list.appendChild(li);
+    }
+  },
+};
+window.Privacy = Privacy;
+
+function relTime(ms) {
+  const s = Math.max(0, (Date.now() - ms) / 1000);
+  if (s < 60) return "just now";
+  const m = s / 60; if (m < 60) return `${Math.round(m)} min ago`;
+  const h = m / 60; if (h < 24) return `${Math.round(h)} h ago`;
+  const d = h / 24; if (d < 30) return `${Math.round(d)} d ago`;
+  return new Date(ms).toLocaleDateString();
+}
+function escapeHtml(s) {
+  return String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+
+function setText(id, t) { const el = document.getElementById(id); if (el) el.textContent = t; }
+function setRing(key, pct) {
+  const ring = document.getElementById("ring-" + key), val = document.getElementById(key + "-val");
+  if (!ring) return;
+  if (pct == null) { ring.style.setProperty("--p", 0); ring.style.setProperty("--c", "var(--muted)"); if (val) val.textContent = "N/A"; return; }
+  const p = Math.max(0, Math.min(100, pct));
+  ring.style.setProperty("--p", p);
+  ring.style.setProperty("--c", p >= 88 ? "var(--red)" : p >= 65 ? "#f5a524" : "var(--accent)");
+  if (val) val.textContent = Math.round(p) + "%";
+}
+function fmtUptime(sec) {
+  sec = Math.floor(sec || 0);
+  const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60);
+  if (d) return `${d}d ${h}h`; if (h) return `${h}h ${m}m`; return `${m}m`;
+}
+function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+function fmtMB(mb) { if (mb == null) return "—"; return mb >= 1024 ? (mb / 1024).toFixed(2) + " GB" : Math.round(mb) + " MB"; }
+
+function drawStatChart(range, series) {
+  const canvas = document.getElementById("stat-chart"), empty = document.getElementById("stat-empty");
+  if (!canvas) return;
+  let pts, labels;
+  if (range === "live") {
+    pts = (series.live || []).map((s) => ({ cpu: s.cpu, mem: s.mem })); labels = null;
+  } else {
+    const arr = (series.daily || []).slice(-parseInt(range, 10));
+    pts = arr.map((d) => ({ cpu: Math.round(d.cpuA), mem: Math.round(d.memA) }));
+    labels = arr.map((d) => d.date.slice(5));
+  }
+  if (pts.length < 2) { canvas.style.display = "none"; empty.style.display = "block"; return; }
+  canvas.style.display = "block"; empty.style.display = "none";
+
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.clientWidth || 600, H = canvas.clientHeight || 200;
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  const ctx = canvas.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+
+  const padL = 26, padR = 8, padT = 8, padB = labels ? 20 : 8;
+  const cw = W - padL - padR, ch = H - padT - padB;
+  const x = (i) => padL + (pts.length === 1 ? cw / 2 : (i / (pts.length - 1)) * cw);
+  const y = (v) => padT + (1 - v / 100) * ch;
+
+  const border = cssVar("--border") || "#262238", muted = cssVar("--muted") || "#9491ad";
+  const cpuC = cssVar("--accent") || "#9277ff", memC = cssVar("--accent-2") || "#34d9f0";
+
+  ctx.font = "10px system-ui"; ctx.lineWidth = 1;
+  for (const g of [0, 25, 50, 75, 100]) {
+    const yy = y(g);
+    ctx.strokeStyle = border; ctx.globalAlpha = 0.5;
+    ctx.beginPath(); ctx.moveTo(padL, yy); ctx.lineTo(W - padR, yy); ctx.stroke(); ctx.globalAlpha = 1;
+    ctx.fillStyle = muted; ctx.textAlign = "right"; ctx.textBaseline = "middle"; ctx.fillText(g + "", padL - 5, yy);
+  }
+  if (labels) {
+    ctx.fillStyle = muted; ctx.textAlign = "center"; ctx.textBaseline = "top";
+    const step = Math.ceil(labels.length / 8);
+    for (let i = 0; i < labels.length; i += step) ctx.fillText(labels[i], x(i), H - padB + 5);
+  }
+  function series2(key, color) {
+    ctx.beginPath();
+    pts.forEach((p, i) => { const px = x(i), py = y(p[key]); i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); });
+    ctx.lineTo(x(pts.length - 1), y(0)); ctx.lineTo(x(0), y(0)); ctx.closePath();
+    ctx.fillStyle = color; ctx.globalAlpha = 0.1; ctx.fill(); ctx.globalAlpha = 1;
+    ctx.beginPath();
+    pts.forEach((p, i) => { const px = x(i), py = y(p[key]); i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); });
+    ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.stroke();
+  }
+  series2("mem", memC);
+  series2("cpu", cpuC);
+}
 
 // ------------------------------------------------------ theme toggle
 (function () {

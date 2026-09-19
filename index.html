@@ -100,7 +100,7 @@
           <h1>Settings</h1>
           <p class="panel-lead">Customize which services load, reorder them, and how the app protects itself.</p>
 
-          <section class="panel-section">
+          <section class="pcard">
             <h2>Appearance</h2>
             <p class="panel-hint">Rename the app below. The app icon is fixed - the red &ldquo;N&rdquo; - and stays the same everywhere.</p>
             <div class="appearance-row">
@@ -114,53 +114,131 @@
             </div>
           </section>
 
-          <section class="panel-section">
+          <section class="pcard">
             <h2>Services</h2>
             <p class="panel-hint">These toggles set which services belong to your room — turning one off removes it entirely and it stays off after a restart. To pause a service just for now (free its memory but keep it in the sidebar), right-click its icon in Social → Pause; it greys out and a click resumes it. Drag the sidebar icons to reorder.</p>
             <div id="settings-services" class="settings-services"></div>
           </section>
 
-          <section class="panel-section">
-            <h2>Startup</h2>
-            <div class="settings-service-row">
-              <span class="name">Start Nishro Room when Windows starts</span>
-              <button class="toggle" id="autostart-toggle"></button>
-            </div>
-          </section>
+          <div class="panel-cols">
+            <section class="pcard">
+              <h2>Startup</h2>
+              <div class="settings-service-row">
+                <span class="name">Start Nishro Room when Windows starts</span>
+                <button class="toggle" id="autostart-toggle"></button>
+              </div>
+            </section>
 
-          <section class="panel-section">
-            <h2>Keyboard shortcuts</h2>
-            <p class="panel-hint">
-              <b>Ctrl+1…8</b> jump to a service &middot; <b>Ctrl+B</b> collapse the main sidebar &middot; <b>Ctrl+,</b> open Settings.
-            </p>
-          </section>
+            <section class="pcard">
+              <h2>App lock</h2>
+              <p class="panel-hint" id="pin-status-text"></p>
+              <div class="panel-row">
+                <input id="settings-pin-input" type="password" inputmode="numeric" placeholder="New PIN" />
+                <button id="settings-set-pin">Set PIN</button>
+              </div>
+              <button id="settings-remove-pin" class="secondary-btn">Remove PIN</button>
+            </section>
 
-          <section class="panel-section">
-            <h2>App lock</h2>
-            <p class="panel-hint" id="pin-status-text"></p>
-            <div class="panel-row">
-              <input id="settings-pin-input" type="password" inputmode="numeric" placeholder="New PIN" />
-              <button id="settings-set-pin">Set PIN</button>
-            </div>
-            <button id="settings-remove-pin" class="secondary-btn">Remove PIN</button>
-          </section>
+            <section class="pcard">
+              <h2>Keyboard shortcuts</h2>
+              <p class="panel-hint">
+                <b>Ctrl+1…8</b> jump to a service &middot; <b>Ctrl+B</b> collapse the main sidebar &middot; <b>Ctrl+,</b> open Settings.
+              </p>
+            </section>
 
-          <section class="panel-section">
-            <h2>Logins &amp; cookies</h2>
-            <p class="panel-hint">
-              Each service keeps its own persistent session - log in once, and it
-              stays logged in across restarts until you sign out yourself. If a
-              site offers a "security key / passkey" prompt (Windows may ask you
-              to insert a USB key), just cancel it and use email + password;
-              that's the site's own login option, not something this app requires.
-            </p>
-          </section>
+            <section class="pcard">
+              <h2>Logins &amp; cookies</h2>
+              <p class="panel-hint">
+                Each service keeps its own persistent session - log in once, and it
+                stays logged in across restarts until you sign out yourself. If a
+                site offers a "security key / passkey" prompt (Windows may ask you
+                to insert a USB key), just cancel it and use email + password;
+                that's the site's own login option, not something this app requires.
+              </p>
+            </section>
+          </div>
 
-          <section class="panel-section">
+          <section class="pcard">
             <h2>Developer — service links</h2>
             <p class="panel-hint">Override the address each service opens (must start with <code>https://</code>). Leave a box empty to use the default. Saving reloads that service.</p>
             <div id="dev-urls" class="dev-urls"></div>
           </section>
+        </div>
+      </div>
+
+      <div id="panel-pcstatus" class="panel" style="display:none">
+        <div class="panel-inner">
+          <h1>PC Status</h1>
+          <p class="panel-lead">Live CPU, memory and disk — and how they've trended over the past weeks. Sampled quietly in the background while Nishro Room is open.</p>
+
+          <section class="pcard">
+            <div class="stat-gauges">
+              <div class="gauge">
+                <div class="gauge-ring" id="ring-cpu"><span class="gauge-val" id="cpu-val">—</span></div>
+                <span class="gauge-name">CPU</span><span class="gauge-note" id="cpu-note"></span>
+              </div>
+              <div class="gauge">
+                <div class="gauge-ring" id="ring-mem"><span class="gauge-val" id="mem-val">—</span></div>
+                <span class="gauge-name">Memory</span><span class="gauge-note" id="mem-note"></span>
+              </div>
+              <div class="gauge">
+                <div class="gauge-ring" id="ring-disk"><span class="gauge-val" id="disk-val">—</span></div>
+                <span class="gauge-name">Disk</span><span class="gauge-note" id="disk-note"></span>
+              </div>
+            </div>
+            <p class="stat-uptime" id="stat-uptime"></p>
+          </section>
+
+          <div class="nishro-usage">
+            <div class="nu-head"><img class="nu-ic" src="icon.png" alt="" /><span>Nishro Room's own footprint</span><span class="nu-procs" id="nu-procs"></span></div>
+            <div class="nu-body">
+              <div class="nu-stat"><span class="nu-val" id="nu-cpu">—</span><span class="nu-lbl">CPU</span></div>
+              <div class="nu-stat"><span class="nu-val" id="nu-mem">—</span><span class="nu-lbl">RAM</span></div>
+              <span class="nu-note" id="nu-note"></span>
+            </div>
+          </div>
+
+          <section class="pcard">
+            <div class="stat-head">
+              <h2>History</h2>
+              <div class="stat-range" id="stat-range">
+                <button class="range-btn active" data-range="live">Live</button>
+                <button class="range-btn" data-range="7">7 days</button>
+                <button class="range-btn" data-range="30">30 days</button>
+                <button class="range-btn" data-range="90">90 days</button>
+              </div>
+            </div>
+            <div class="stat-legend"><span class="lg lg-cpu">CPU</span><span class="lg lg-mem">Memory</span></div>
+            <div class="stat-chart-wrap"><canvas id="stat-chart"></canvas></div>
+            <p class="panel-hint" id="stat-empty" style="display:none">Not enough history yet — leave Nishro Room running and the daily trend will build up here (one point per day).</p>
+          </section>
+        </div>
+      </div>
+
+      <div id="panel-privacy" class="panel" style="display:none">
+        <div class="panel-inner">
+          <h1>Camera &amp; Mic</h1>
+          <p class="panel-lead">Which apps are using — or last used — your camera and microphone. Read live from Windows' own usage ledger, so it catches a mic that's still hot even when you thought an app was muted.</p>
+
+          <div class="priv-grid">
+            <section class="priv-card" id="priv-mic-card">
+              <div class="priv-head">
+                <span class="priv-ic">🎤</span>
+                <div class="priv-title">Microphone <span class="priv-state" id="priv-mic-state">—</span></div>
+              </div>
+              <ul class="priv-list" id="priv-mic-list"></ul>
+            </section>
+
+            <section class="priv-card" id="priv-cam-card">
+              <div class="priv-head">
+                <span class="priv-ic">📷</span>
+                <div class="priv-title">Camera <span class="priv-state" id="priv-cam-state">—</span></div>
+              </div>
+              <ul class="priv-list" id="priv-cam-list"></ul>
+            </section>
+          </div>
+
+          <p class="panel-hint" id="priv-updated"></p>
         </div>
       </div>
 
@@ -180,7 +258,7 @@
             <button id="companion-toggle">Start</button>
           </div>
 
-          <div class="panel-section">
+          <section class="pcard">
             <h2>Connect from your phone</h2>
             <p class="panel-hint">Fastest: in the phone's <b>PC Connect</b>, tap <b>Scan QR</b> and point it here. Or type the values below.</p>
             <div class="connect-row">
@@ -191,35 +269,37 @@
                 <div class="conn-cell"><span class="conn-label">PIN</span><span id="conn-pin" class="conn-value">—</span></div>
               </div>
             </div>
-          </div>
+          </section>
 
-          <div class="panel-section">
-            <h2>Phone screen &amp; control</h2>
-            <p class="panel-hint">
-              Mirror and <b>control</b> your phone from the PC, over Wi-Fi. On the phone open
-              <b>Nishro app → More → Screen to PC → Share my screen</b> (allow the <b>Start recording</b>
-              prompt; for touch/buttons also tap <b>Enable phone control</b>). Then type the address it
-              shows and open the phone window - it's a normal resizable window you can size like any other.
-            </p>
-            <div class="panel-row">
-              <input id="phone-ip" type="text" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="Phone IP  (e.g. 192.168.0.42)" />
-              <input id="phone-port" type="number" value="8090" style="max-width:96px" />
-              <button id="phone-show-btn">Open phone window</button>
-            </div>
-            <p id="phone-view-status" class="mirror-status"></p>
-          </div>
+          <div class="panel-cols">
+            <section class="pcard">
+              <h2>Phone screen &amp; control</h2>
+              <p class="panel-hint">
+                Mirror and <b>control</b> your phone from the PC, over Wi-Fi. On the phone open
+                <b>Nishro app → More → Screen to PC → Share my screen</b> (allow the <b>Start recording</b>
+                prompt; for touch/buttons also tap <b>Enable phone control</b>). Then type the address it
+                shows and open the phone window - it's a normal resizable window you can size like any other.
+              </p>
+              <div class="panel-row">
+                <input id="phone-ip" type="text" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="Phone IP  (e.g. 192.168.0.42)" />
+                <input id="phone-port" type="number" value="8090" style="max-width:96px" />
+                <button id="phone-show-btn">Open phone window</button>
+              </div>
+              <p id="phone-view-status" class="mirror-status"></p>
+            </section>
 
-          <div class="panel-section">
-            <h2>Settings</h2>
-            <div class="panel-row">
-              <input id="companion-pin-input" type="text" inputmode="numeric" placeholder="Change PIN" />
-              <button id="companion-set-pin">Update PIN</button>
-            </div>
-            <div class="panel-row">
-              <input id="companion-folder" type="text" readonly placeholder="Shared folder" />
-              <button id="companion-pick-folder" class="secondary-btn">Change…</button>
-            </div>
-            <button id="companion-open-folder" class="secondary-btn">Open shared folder</button>
+            <section class="pcard">
+              <h2>Settings</h2>
+              <div class="panel-row">
+                <input id="companion-pin-input" type="text" inputmode="numeric" placeholder="Change PIN" />
+                <button id="companion-set-pin">Update PIN</button>
+              </div>
+              <div class="panel-row">
+                <input id="companion-folder" type="text" readonly placeholder="Shared folder" />
+                <button id="companion-pick-folder" class="secondary-btn">Change…</button>
+              </div>
+              <button id="companion-open-folder" class="secondary-btn">Open shared folder</button>
+            </section>
           </div>
 
           <p id="companion-error" class="companion-error"></p>

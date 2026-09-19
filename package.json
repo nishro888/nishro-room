@@ -1,6 +1,6 @@
 {
   "name": "nishro-room",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "description": "Nishro Room - the desktop half of the Nishro ecosystem. Social Hub (Facebook, Messenger, Instagram, WhatsApp, Telegram, LinkedIn, Gmail, Drive - each the real official site, no automation) plus an integrated, auto-managed PC Companion.",
   "main": "main.js",

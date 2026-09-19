@@ -787,7 +787,10 @@ code { font-family: ui-monospace, "Cascadia Code", monospace; color: var(--accen
   background: radial-gradient(circle, rgba(146, 119, 255, 0.14), transparent 70%);
   pointer-events: none;
 }
-.panel-inner { position: relative; max-width: 620px; }
+/* Panels have no side rail, so they own the full window width. Use all of it
+   (was capped at 620px pinned hard-left, leaving the right half of a wide
+   window empty). */
+.panel-inner { position: relative; max-width: none; width: 100%; }
 
 .panel h1 {
   margin: 0 0 6px;
@@ -863,6 +866,103 @@ code { font-family: ui-monospace, "Cascadia Code", monospace; color: var(--accen
 .dev-url-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
 .dev-url-save { flex-shrink: 0; padding: 8px 14px; font-size: 0.78rem; }
 
+/* ============ Panel content: card system ============ */
+/* Every settings/companion/status section is a self-contained card. Small
+   cards pack into balanced masonry columns so a wide window fills without
+   stretching any lone control; wide content (service grid, chart, QR) spans
+   the full width via a standalone card. */
+.pcard {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-soft);
+  padding: 18px 20px;
+  margin: 0 0 16px;
+}
+.pcard > h2 { margin: 0 0 10px; font-size: 1rem; font-weight: 700; }
+.pcard > .panel-hint { margin-top: 0; }
+.pcard:last-child { margin-bottom: 0; }
+
+/* masonry-style columns for the compact cards */
+.panel-cols { columns: 340px; column-gap: 16px; margin-top: 2px; }
+.panel-cols > .pcard {
+  break-inside: avoid; -webkit-column-break-inside: avoid;
+  display: inline-block; width: 100%; vertical-align: top;
+}
+
+/* Services: a chip grid, not a stretched single column */
+.settings-services {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 8px;
+}
+.settings-service-row { border-radius: var(--radius-md); }
+
+/* Appearance: keep the name field a sensible width, not window-wide */
+.appearance-fields { max-width: 480px; }
+
+/* Developer service links: two-up on wide windows */
+.dev-urls {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 10px;
+  margin-top: 0;
+}
+
+/* ---- PC Status ---- */
+.stat-gauges { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 4px; justify-content: space-around; }
+.gauge { display: flex; flex-direction: column; align-items: center; gap: 7px; flex: 1; min-width: 120px; }
+.gauge-ring {
+  --p: 0; --c: var(--accent);
+  width: 100px; height: 100px; border-radius: 50%;
+  background: conic-gradient(var(--c) calc(var(--p) * 1%), var(--surface-2) 0);
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+  transition: background 0.45s var(--ease-soft);
+}
+.gauge-ring::before { content: ""; position: absolute; inset: 9px; border-radius: 50%; background: var(--surface); box-shadow: var(--shadow-soft); }
+.gauge-val { position: relative; z-index: 1; font-size: 1.3rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.gauge-name { font-weight: 600; font-size: 0.9rem; }
+.gauge-note { font-size: 0.74rem; color: var(--muted); text-align: center; min-height: 1em; }
+.stat-uptime { color: var(--muted); font-size: 0.82rem; margin: 14px 0 0; }
+
+.stat-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.stat-head h2 { margin: 0; }
+.stat-range { display: flex; gap: 2px; padding: 2px; background: var(--track); border: 1px solid var(--border); border-radius: 999px; -webkit-app-region: no-drag; }
+.range-btn {
+  padding: 5px 13px; font-size: 0.76rem; font-weight: 600;
+  background: transparent; border: 0; box-shadow: none; color: var(--muted); border-radius: 999px;
+  transition: background 0.13s, color 0.13s;
+}
+.range-btn:hover:not(.active) { background: var(--surface-2); color: var(--text); filter: none; }
+.range-btn.active { background: var(--accent-grad); color: #fff; box-shadow: none; }
+
+.stat-legend { display: flex; gap: 16px; margin: 12px 0 4px; font-size: 0.78rem; color: var(--muted); }
+.stat-legend .lg { display: inline-flex; align-items: center; gap: 6px; }
+.stat-legend .lg::before { content: ""; width: 13px; height: 3px; border-radius: 2px; }
+.lg-cpu::before { background: var(--accent); }
+.lg-mem::before { background: var(--accent-2); }
+.stat-chart-wrap { height: 200px; margin-top: 2px; }
+#stat-chart { width: 100%; height: 100%; display: block; }
+
+/* Nishro Room's own footprint */
+.nishro-usage {
+  margin-top: 16px;
+  padding: 13px 16px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 12%, var(--surface)), var(--surface));
+  border: 1px solid var(--border-hi);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-soft);
+}
+.nu-head { display: flex; align-items: center; gap: 9px; font-weight: 600; font-size: 0.9rem; }
+.nu-ic { width: 22px; height: 22px; border-radius: 6px; }
+.nu-procs { margin-left: auto; font-size: 0.75rem; color: var(--muted); font-weight: 500; }
+.nu-body { display: flex; align-items: baseline; gap: 22px; margin-top: 11px; flex-wrap: wrap; }
+.nu-stat { display: flex; align-items: baseline; gap: 6px; }
+.nu-val { font-size: 1.3rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--accent-soft); }
+.nu-lbl { font-size: 0.78rem; color: var(--muted); }
+.nu-note { margin-left: auto; font-size: 0.76rem; color: var(--muted); }
+
 .toggle {
   width: 42px;
   height: 24px;
@@ -907,7 +1007,7 @@ code { font-family: ui-monospace, "Cascadia Code", monospace; color: var(--accen
 .companion-dot.on { background: var(--green); box-shadow: 0 0 10px var(--green); }
 .companion-dot.err { background: var(--red); box-shadow: 0 0 10px var(--red); }
 
-.connect-row { display: flex; gap: 16px; align-items: stretch; }
+.connect-row { display: flex; gap: 16px; align-items: stretch; max-width: 640px; }
 .connect-row .conn-grid { flex: 1; }
 .conn-grid-col { flex-direction: column; }
 .qr-box {
@@ -1060,3 +1160,46 @@ code { font-family: ui-monospace, "Cascadia Code", monospace; color: var(--accen
 @media (max-height: 520px) {
   .service-rail-title { margin-bottom: 4px; }
 }
+
+/* ---- Camera & Mic privacy monitor ---- */
+.priv-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+.priv-card {
+  background: var(--surface);
+  border: 1px solid var(--border-hi);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-soft);
+  padding: 14px 16px;
+}
+.priv-head { display: flex; align-items: center; gap: 10px; }
+.priv-ic {
+  width: 34px; height: 34px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem; border-radius: 10px;
+  background: var(--surface-2); border: 1px solid var(--border);
+}
+.priv-title { font-weight: 700; font-size: 1rem; display: flex; align-items: center; gap: 10px; }
+.priv-state { font-size: 0.72rem; font-weight: 600; padding: 2px 9px; border-radius: 999px; }
+.priv-state.idle { color: var(--muted); background: var(--surface-2); }
+.priv-state.live { color: #fff; background: var(--red); animation: privPulse 1.4s ease-in-out infinite; }
+@keyframes privPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
+
+.priv-list { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+.priv-item {
+  display: flex; align-items: center; gap: 11px;
+  padding: 9px 11px; border-radius: var(--radius-sm);
+  background: var(--surface-2); border: 1px solid transparent;
+}
+.priv-item.live { border-color: color-mix(in srgb, var(--red) 55%, transparent); background: color-mix(in srgb, var(--red) 10%, var(--surface)); }
+.priv-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; background: var(--muted-2); }
+.priv-item.live .priv-dot { background: var(--red); box-shadow: 0 0 0 4px color-mix(in srgb, var(--red) 22%, transparent); animation: privPulse 1.4s ease-in-out infinite; }
+.priv-app { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+.priv-name { font-weight: 600; font-size: 0.9rem; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.priv-path { font-size: 0.72rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.priv-badge.live { font-size: 0.7rem; font-weight: 700; color: #fff; background: var(--red); padding: 3px 9px; border-radius: 999px; white-space: nowrap; flex-shrink: 0; }
+.priv-when { font-size: 0.74rem; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
+.priv-empty { color: var(--muted); font-size: 0.85rem; padding: 6px 2px; }
