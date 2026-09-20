@@ -263,6 +263,87 @@ def scan_privacy():
         return {"camera": [], "microphone": [], "error": str(exc)}
 
 
+# ------------------------------------------------- browser upload ("/send")
+# A no-app way to get files off ANY phone (iPhone included): the phone opens
+# this page in its browser over the LAN and picks photos/files, which upload
+# straight into the shared folder. iOS can't install our app without the App
+# Store, but Safari + this page needs nothing installed. The page reads the PIN
+# from its own URL (?pin=) so a scanned QR lands here already authorised.
+UPLOAD_PAGE_HTML = r"""<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Send to __PCNAME__</title>
+<style>
+:root{--bg:#0b0a12;--card:#16141f;--card2:#1d1a2b;--text:#f1effb;--muted:#9391ac;--accent:#7c5cff;--border:#2a2740;--green:#22c98c;--red:#f43f5e}
+@media (prefers-color-scheme:light){:root{--bg:#f6f6fb;--card:#fff;--card2:#f0eefb;--text:#15131f;--muted:#68667c;--border:#e8e5f5}}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.5 -apple-system,system-ui,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);padding:max(16px,env(safe-area-inset-top)) 16px calc(20px + env(safe-area-inset-bottom))}
+.wrap{max-width:520px;margin:0 auto}
+h1{font-size:1.4rem;margin:6px 0 2px}
+.sub{color:var(--muted);font-size:.9rem;margin:0 0 16px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;margin-bottom:14px}
+.pin{display:flex;gap:8px;align-items:center;margin-bottom:14px}
+.pin span{color:var(--muted);font-size:.85rem;font-weight:600}
+.pin input{flex:1;font:inherit;padding:11px;border-radius:10px;border:1px solid var(--border);background:var(--card2);color:var(--text)}
+.btns{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.pick{display:flex;flex-direction:column;align-items:center;gap:8px;padding:24px 10px;border:1.5px dashed var(--border);border-radius:14px;background:var(--card2);color:var(--text);font-weight:600;font-size:.95rem;text-align:center}
+.pick:active{border-color:var(--accent);color:var(--accent)}
+.pick .ic{font-size:1.9rem}
+.list{list-style:none;margin:14px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}
+.item{background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:10px 12px}
+.item .top{display:flex;justify-content:space-between;gap:10px;font-size:.86rem}
+.item .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item .st{flex-shrink:0;color:var(--muted)}
+.item .st.ok{color:var(--green)}.item .st.err{color:var(--red)}
+.bar{height:6px;border-radius:6px;background:var(--border);margin-top:8px;overflow:hidden}
+.bar>span{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),#6ea8ff);transition:width .15s}
+.hint{color:var(--muted);font-size:.8rem;margin-top:12px}
+.done{text-align:center;font-weight:700;margin-top:10px;min-height:1.2em}
+</style></head>
+<body><div class="wrap">
+<h1>Send to __PCNAME__</h1>
+<p class="sub">Pick photos or files &mdash; they save straight to your PC over Wi-Fi.</p>
+<div class="card">
+  <div class="pin"><span>PIN</span><input id="pin" inputmode="numeric" autocomplete="off" placeholder="PC PIN"></div>
+  <div class="btns">
+    <label class="pick"><span class="ic">&#128247;</span>Photos &amp; Videos<input id="photos" type="file" accept="image/*,video/*" multiple hidden></label>
+    <label class="pick"><span class="ic">&#128196;</span>Files<input id="files" type="file" multiple hidden></label>
+  </div>
+  <ul class="list" id="list"></ul>
+  <div class="done" id="done"></div>
+  <p class="hint">iPhone: tap <b>Photos &amp; Videos</b> to send from your library. Whole-folder upload works on Android / computer browsers.</p>
+</div>
+</div>
+<script>
+var pin=document.getElementById('pin');
+pin.value=new URLSearchParams(location.search).get('pin')||'';
+var list=document.getElementById('list'),done=document.getElementById('done');
+var queue=[],busy=false,ok=0,fail=0;
+function human(b){if(b<1024)return b+' B';var u=['KB','MB','GB'],v=b/1024,i=0;while(v>=1024&&i<2){v/=1024;i++}return (v<10?v.toFixed(1):Math.round(v))+' '+u[i]}
+function add(files){for(var i=0;i<files.length;i++){var f=files[i];var li=document.createElement('li');li.className='item';
+  li.innerHTML='<div class="top"><span class="nm"></span><span class="st">waiting</span></div><div class="bar"><span></span></div>';
+  li.querySelector('.nm').textContent=f.name+'  ·  '+human(f.size);
+  list.appendChild(li);queue.push({f:f,li:li});}
+  pump();}
+function pump(){if(busy)return;var job=queue.shift();if(!job){summary();return;}busy=true;
+  var st=job.li.querySelector('.st'),bar=job.li.querySelector('.bar>span');st.textContent='sending';st.className='st';
+  var xhr=new XMLHttpRequest();
+  xhr.open('POST','/api/upload?path='+encodeURIComponent('Phone Uploads')+'&pin='+encodeURIComponent(pin.value));
+  var fd=new FormData();fd.append('file',job.f,job.f.name);
+  xhr.upload.onprogress=function(e){if(e.lengthComputable)bar.style.width=(e.loaded/e.total*100)+'%'};
+  xhr.onload=function(){var good=xhr.status>=200&&xhr.status<300;bar.style.width='100%';
+    st.textContent=good?'saved ✓':(xhr.status===401?'wrong PIN':'failed');st.className='st '+(good?'ok':'err');
+    good?ok++:fail++;busy=false;pump();};
+  xhr.onerror=function(){st.textContent='failed';st.className='st err';fail++;busy=false;pump();};
+  xhr.send(fd);}
+function summary(){done.textContent=(ok?('✓ '+ok+' sent to your PC'):'')+(fail?('   ·   '+fail+' failed'):'');}
+document.getElementById('photos').addEventListener('change',function(e){add(e.target.files);e.target.value='';});
+document.getElementById('files').addEventListener('change',function(e){add(e.target.files);e.target.value='';});
+</script>
+</body></html>"""
+
+
 class _MultipartReader:
     """Streaming multipart/form-data reader - same design as lanshare's:
     written by hand because cgi.FieldStorage buffers whole parts in memory
@@ -381,6 +462,21 @@ class CompanionHandler(BaseHTTPRequestHandler):
         except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
             pass
 
+    def _html(self, status: int, html: str) -> None:
+        body = html.encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self._cors()
+        self.end_headers()
+        try:
+            self.wfile.write(body)
+        except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
+            pass
+
+    def _send_upload_page(self) -> None:
+        self._html(200, UPLOAD_PAGE_HTML.replace("__PCNAME__", socket.gethostname()))
+
     def _cors(self) -> None:
         # The app calls this from its own origin (file:// in the Android
         # WebView, or https://nishro-app.vercel.app on the web build), never
@@ -410,6 +506,11 @@ class CompanionHandler(BaseHTTPRequestHandler):
 
         if path == "/api/ping":
             self._json(200, {"ok": True, "name": socket.gethostname()})
+            return
+        # Public browser upload page (any phone, no app). Uploads it triggers
+        # still carry the PIN, so this being unauthenticated is only the HTML.
+        if path in ("/", "/send"):
+            self._send_upload_page()
             return
         if not self._authed():
             self._json(401, {"error": "bad or missing pin"})

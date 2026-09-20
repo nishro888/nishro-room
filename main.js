@@ -404,9 +404,15 @@ ipcMain.handle("companion-qr", async () => {
   const pin = s.companionPin || "";
   if (!ip || !pin) return { ok: false };
   const text = `nishro://pc?ip=${ip}&port=8100&pin=${encodeURIComponent(pin)}`;
+  // Browser upload page (any phone, no app) - scanning this QR in the iPhone
+  // Camera opens Safari straight to the already-authorised upload page.
+  const webUrl = `http://${ip}:8100/send?pin=${encodeURIComponent(pin)}`;
+  const webShown = `http://${ip}:8100/send`;
   try {
-    const svg = await QRCode.toString(text, { type: "svg", margin: 1, color: { dark: "#0b0916", light: "#ffffff" } });
-    return { ok: true, svg, text };
+    const qopts = { type: "svg", margin: 1, color: { dark: "#0b0916", light: "#ffffff" } };
+    const svg = await QRCode.toString(text, qopts);
+    const webSvg = await QRCode.toString(webUrl, qopts);
+    return { ok: true, svg, text, webSvg, webUrl, webShown };
   } catch (e) { return { ok: false }; }
 });
 

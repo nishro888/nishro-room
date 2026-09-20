@@ -635,6 +635,8 @@ function applyCompanion(info) {
   document.getElementById("conn-ip").textContent = info.ip || "—";
   document.getElementById("conn-port").textContent = info.port || 8100;
   document.getElementById("conn-pin").textContent = info.pin || "—";
+  const pin2 = document.getElementById("conn-pin-2");
+  if (pin2) pin2.textContent = info.pin || "—";
   if (info.folder) document.getElementById("companion-folder").value = info.folder;
   err.textContent = info.error || "";
   refreshQr(info);
@@ -649,6 +651,11 @@ async function refreshQr(info) {
     const r = await window.hub.companionQr();
     const box = document.getElementById("companion-qr");
     if (box && r && r.ok) box.innerHTML = r.svg;
+    // browser upload page (any phone incl. iPhone, no app)
+    const wbox = document.getElementById("companion-web-qr");
+    if (wbox && r && r.ok && r.webSvg) wbox.innerHTML = r.webSvg;
+    const wurl = document.getElementById("companion-web-url");
+    if (wurl && r && r.ok && r.webShown) wurl.textContent = r.webShown;
   } catch { /* ignore */ }
 }
 
