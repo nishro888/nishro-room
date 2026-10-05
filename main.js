@@ -713,9 +713,12 @@ function createView(service) {
   view.webContents.on("did-navigate", onNav);
   view.webContents.on("did-navigate-in-page", onNav);
 
-  if (service.id === "whatsapp") {
-    // WhatsApp Web rejects Electron's default UA on sight of "Electron/x";
-    // present the real Chromium version in standard Chrome UA form instead.
+  if (service.id === "whatsapp" || service.id === "discord") {
+    // WhatsApp Web rejects Electron's default UA on sight of "Electron/x".
+    // Discord reads the browser name from the UA and only enables video for
+    // Chrome/Safari/Firefox/Opera/Edge - as "Electron" it never asks to receive
+    // video, so Go Live streams and cameras never show. Present the real
+    // Chromium version in standard Chrome UA form instead.
     view.webContents.setUserAgent(
       `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`
     );
