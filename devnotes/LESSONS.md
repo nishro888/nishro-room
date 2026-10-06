@@ -114,3 +114,10 @@ touches the task before starting it. Newest at the end of each section.
   again - and only with the maintainer's OK.
 - **The phone side can't be screenshotted from the PC**: say what the
   maintainer has to check on the phone.
+
+## The tools used to do the work
+
+- **`git add -A` after cherry-picking onto an older commit** swept in an
+  untracked build folder that the newer `.gitignore` had been hiding - 11 MB
+  of PyInstaller output, with local paths in it. Name the files to add, and
+  check `git diff --cached --name-only` before committing.
