@@ -36,14 +36,22 @@ routine. Nothing personal in any of it.
 ```powershell
 npm install
 npm start                    # from source; in a VS Code terminal first: Remove-Item Env:ELECTRON_RUN_AS_NODE
+npm test                     # both suites below, under a minute
+npm run test:ui              # the window: real index.html + renderer.js, a fake bridge, hidden
+npm run test:companion       # the PC companion: real server on a spare port, temp folder
 npm run screenshot-check     # every panel to screenshots/*.png
 npx electron-builder --win --dir     # installer/win-unpacked - the app without a setup
 $env:CSC_IDENTITY_AUTO_DISCOVERY = "false"; npx electron-builder --win nsis   # the setup - see LESSONS
 ```
 
-There are no automated tests. Check a change with `--screenshot-check` and a
-real run, and say plainly what was not verified (much needs a phone or a
-logged-in account).
+**Tests** (`tests/`) touch nothing real: the UI tests swap the main process for
+`tests/ui/fake-preload.js` (scenario data in, every call recorded), and the
+companion tests replace the mouse, key and clipboard functions with recorders.
+A change to the window or the companion comes with a test, and a fix starts
+with a test that fails without it. When `preload.js` gains a name, add it to
+the fake - a test checks the two match. What still needs a person: the main
+process (service views, the companion's supervisor), the phone, and anything
+behind a login - say plainly what was not verified.
 
 ## Rules
 

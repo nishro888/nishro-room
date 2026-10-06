@@ -4,6 +4,19 @@ Newest first. What was checked, how, and what came out - so a result is not
 re-earned, and a failure is not repeated. "The laptop" is the maintainer's
 Windows 10 machine; "the phone" an Android 13 phone with the Nishro app.
 
+## 2026-10-06 - the first automated tests
+
+- `npm test`: **15 UI tests and 26 companion tests pass** (Windows 10,
+  Electron 43.3, Python 3.11), under a minute.
+- Each suite was checked against deliberate breaks, one at a time, and caught
+  every one: in the window - the lock screen's Skip button back, app names
+  inserted as markup, Camera & Mic polling after the tab is left, QR codes
+  remade on every status, badges not capped; in the companion - a PIN check
+  that accepts anything, paths leaving the shared folder, upload names keeping
+  their folders, a finished use counted as "in use", the PIN in the `/send`
+  page, an upload reader keeping too short a tail (this one needed a new test:
+  a file whose end falls across the reader's 256 KB reads).
+
 ## 2026-10-06 - Discord fix
 
 - After a restart, Discord's Settings > Devices lists the app as "Windows -

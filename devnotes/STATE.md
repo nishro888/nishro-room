@@ -10,6 +10,12 @@
   Chrome user agent, so Go Live streams and cameras show). The installed
   copy matches the source.
 
+## Tests
+
+- `npm test` - the window (UI tests with a fake bridge) and the PC companion
+  (the real server, desktop actions recorded, not done). The main process has
+  none yet: the service views, the user agents, the companion's supervisor.
+
 ## Not yet verified
 
 - Watching a Discord Go Live stream. Discord now sees the app as Chrome; no
