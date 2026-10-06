@@ -4,11 +4,11 @@
 
 ## Version
 
-- **On GitHub:** 0.6.0 (2026-09-08).
-- **0.7.0 - built and installed on the maintainer's laptop, not pushed.** It
-  adds the camera and mic privacy monitor, the `/send` browser upload page
-  (any phone, no app), and the Discord fix (a Chrome user agent, so Go Live
-  streams and cameras show). The installed copy matches the source.
+- **0.7.0 - on GitHub (source, 2026-10-06) and installed on the maintainer's
+  laptop; no setup published.** It adds the camera and mic privacy monitor,
+  the `/send` browser upload page (any phone, no app), and the Discord fix (a
+  Chrome user agent, so Go Live streams and cameras show). The installed
+  copy matches the source.
 
 ## Not yet verified
 
@@ -19,8 +19,7 @@
 
 ## Next
 
-1. Push 0.7.0 (with the maintainer's OK).
-2. Bring `README.md` up to date (it still says 0.6.0 and lists eight services;
+1. Bring `README.md` up to date (it still says 0.6.0 and lists eight services;
    there are ten).
 
 ## Ideas, not started
