@@ -6,3 +6,4 @@ icon.png
 shot-qr.png
 __pycache__/
 *.pyc
+build/
