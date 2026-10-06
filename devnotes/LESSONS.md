@@ -62,6 +62,10 @@ touches the task before starting it. Newest at the end of each section.
   utility buttons reset it. Judge small icons by sampling the screenshot's
   pixels; zoomed crops were too blurry to trust.
 - **Changing the session partition logs everyone out once.**
+- **With no permission handler set, Electron grants every permission** (camera,
+  mic, notifications...). A site feature that fails is not missing a
+  permission because no handler exists - a test chat once proposed that fix
+  for the Discord streams. Check the site's console before adding handlers.
 
 ## The sites
 
